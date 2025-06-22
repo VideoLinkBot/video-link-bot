@@ -1,35 +1,39 @@
-import os
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-import yt_dlp
 
-BOT_TOKEN = "8066907048:AAEWVhSO979loFadCDaDRkPwnbSNK_kupEE"
+import os
+import openai
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
+from dotenv import load_dotenv
+
+load_dotenv()
+
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+openai.api_key = OPENAI_API_KEY
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text("Salom! YouTube link yuboring, men video yuklab beraman.")
+    await update.message.reply_text("Salom! Menga biror savol ber.")
 
-async def download(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    url = update.message.text
-    await update.message.reply_text("Video yuklanmoqda...")
+async def chat(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_message = update.message.text
 
-    ydl_opts = {
-        'outtmpl': 'video.mp4',
-        'format': 'best'
-    }
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "user", "content": user_message}]
+    )
 
-    try:
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        await update.message.reply_video(video=open('video.mp4', 'rb'))
-        os.remove('video.mp4')
-    except Exception as e:
-        await update.message.reply_text(f"Xatolik: {e}")
+    bot_reply = response.choices[0].message.content.strip()
+    await update.message.reply_text(bot_reply)
 
-def main():
-    app = ApplicationBuilder().token(BOT_TOKEN).build()
+async def main():
+    app = Application.builder().token(TELEGRAM_TOKEN).build()
+
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("video", download))
-    app.run_polling()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, chat))
 
-if __name__ == '__main__':
-    main()
+    await app.run_polling()
+
+if __name__ == "__main__":
+    import asyncio
+    asyncio.run(main())
